@@ -36,6 +36,16 @@ function Convert-ToJsonLine([hashtable]$data) {
   return ($data | ConvertTo-Json -Compress -Depth 4)
 }
 
+function Normalize-OcrText([string]$text) {
+  $normalized = ($text -replace "\s+", " ").Trim()
+  $cjk = "[\u4E00-\u9FFF]"
+  $punct = "[\u3001\u3002\u300A\u300B\u300C\u300D\u300E\u300F\u2018\u2019\u201C\u201D\uFF01-\uFF1F\uFF08\uFF09]"
+  $normalized = $normalized -replace "($cjk)\s+(?=$cjk)", '$1'
+  $normalized = $normalized -replace "($cjk)\s+(?=$punct)", '$1'
+  $normalized = $normalized -replace "($punct)\s+(?=$cjk)", '$1'
+  return $normalized
+}
+
 $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromLanguage([Windows.Globalization.Language]::new($Language))
 if ($null -eq $engine) {
   throw "OCR language is not available: $Language"
@@ -67,7 +77,7 @@ foreach ($pageFile in $pages) {
     }
 
     $result = Wait-WinRtOperation ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
-    $text = ($result.Text -replace "\s+", " ").Trim()
+    $text = Normalize-OcrText $result.Text
     $textParts.Add("--- Page $pageNumber ---`n$text")
     $jsonLines.Add((Convert-ToJsonLine @{ page = $pageNumber; text = $text }))
 
